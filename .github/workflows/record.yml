@@ -1,0 +1,71 @@
+name: Record audio
+
+# Records the King James Bible in the Kokoro "Daniel" voice using the script and text from the
+# KJV Bible app repo, in 20 parallel slices, then commits the chapters here (served by GitHub Pages).
+# Chapters already in this repo are skipped, so re-running only fills in what's missing.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/record.yml
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Bluesboy13/BibleApp
+          ref: claude/sweet-cerf-nr0tgl
+          path: app
+          sparse-checkout: |
+            data
+            tools/audio
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install --quiet kokoro-onnx soundfile numpy
+      - uses: actions/cache@v4
+        with:
+          path: models
+          key: kokoro-v1.0
+      - name: Record slice ${{ matrix.shard }} of 20
+        run: python app/tools/audio/generate.py --out new --skip-in . --models models --books 1-66 --shard ${{ matrix.shard }}/20
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.shard }}
+          path: new/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  commit:
+    needs: record
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          merge-multiple: true
+          path: .
+      - name: Commit recordings
+        run: |
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add recorded chapters" || exit 0
+          git push
