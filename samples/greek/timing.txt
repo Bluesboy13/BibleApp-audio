@@ -1,0 +1,4 @@
+john1_default: 9.4s audio in 50s
+john1_daniel: 11.4s audio in 56s
+psalm22_default: 7.3s audio in 35s
+psalm22_daniel: 7.3s audio in 34s
