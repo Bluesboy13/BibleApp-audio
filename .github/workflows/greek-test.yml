@@ -1,0 +1,48 @@
+name: Greek chapter test
+
+# Records one chapter with the app's Greek recorder (tools/greek/generate.py) to check it before the full run.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/greek-test.yml
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github
+      - uses: actions/checkout@v4
+        with:
+          repository: Bluesboy13/BibleApp
+          ref: claude/sweet-cerf-nr0tgl
+          path: app
+          sparse-checkout: |
+            data
+            tools/greek
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install --quiet torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install --quiet chatterbox-tts soundfile
+      - name: Record John 1
+        run: python app/tools/greek/generate.py --only 43:1 --out samples/greek-test
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git sparse-checkout add samples/greek-test
+          git add samples/greek-test
+          git commit -m "Add Greek test chapter (John 1)" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
