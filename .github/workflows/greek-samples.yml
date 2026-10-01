@@ -1,0 +1,42 @@
+name: Greek voice samples
+
+# Records short Greek samples with Chatterbox Multilingual (MIT) to choose a Greek reading voice.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/greek_samples.py
+      - .github/workflows/greek-samples.yml
+
+permissions:
+  contents: write
+
+jobs:
+  samples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            tools
+            .github
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install --quiet torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install --quiet chatterbox-tts kokoro-onnx soundfile
+      - name: Generate
+        run: python tools/greek_samples.py
+      - name: Commit samples
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git sparse-checkout add samples
+          git add samples
+          git commit -m "Add Greek voice samples" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
