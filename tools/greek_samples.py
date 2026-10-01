@@ -1,6 +1,7 @@
-"""Greek voice samples with Chatterbox Multilingual (MIT). Writes samples/greek/*.mp3 and timing info."""
-import os, subprocess, time, unicodedata, urllib.request
-import numpy as np, soundfile as sf, torch
+"""Greek voice samples with Chatterbox Multilingual (MIT). Writes samples/greek/*.mp3 and timing info.
+Needs daniel_ref.wav from tools/daniel_reference.py."""
+import os, subprocess, time, unicodedata
+import soundfile as sf, torch
 
 OUT = "samples/greek"
 os.makedirs(OUT, exist_ok=True)
@@ -18,19 +19,6 @@ def monotonic(t):
     return unicodedata.normalize("NFC", t)
 
 
-def daniel_reference():
-    from kokoro_onnx import Kokoro
-    base = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
-    for f in ["kokoro-v1.0.onnx", "voices-v1.0.bin"]:
-        if not os.path.exists(f):
-            urllib.request.urlretrieve(base + f, f)
-    k = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
-    a, sr = k.create("In the beginning God created the heaven and the earth. And the earth was without form, and void; "
-                     "and darkness was upon the face of the deep.", voice="bm_daniel", speed=0.9, lang="en-gb")
-    sf.write("daniel_ref.wav", a, sr)
-    return "daniel_ref.wav"
-
-
 def mp3(wav, sr, name):
     sf.write(f"{OUT}/{name}.wav", wav, sr)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", f"{OUT}/{name}.wav", "-ac", "1", "-b:a", "96k", f"{OUT}/{name}.mp3"], check=True)
@@ -39,10 +27,9 @@ def mp3(wav, sr, name):
 
 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 model = ChatterboxMultilingualTTS.from_pretrained(device="cpu")
-ref = daniel_reference()
 log = []
 for key, text in TEXTS.items():
-    for voice, prompt in (("default", None), ("daniel", ref)):
+    for voice, prompt in (("default", None), ("daniel", "daniel_ref.wav")):
         torch.manual_seed(5)
         t0 = time.time()
         kw = {"audio_prompt_path": prompt} if prompt else {}

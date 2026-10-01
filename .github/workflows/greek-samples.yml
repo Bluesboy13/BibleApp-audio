@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - tools/greek_samples.py
+      - tools/daniel_reference.py
       - .github/workflows/greek-samples.yml
 
 permissions:
@@ -24,11 +25,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Daniel reference clip
+        run: |
+          python -m venv kv
+          kv/bin/pip install --quiet kokoro-onnx==0.6.1 soundfile
+          kv/bin/python tools/daniel_reference.py
       - name: Install
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
           pip install --quiet torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-          pip install --quiet chatterbox-tts kokoro-onnx soundfile
+          pip install --quiet chatterbox-tts soundfile
       - name: Generate
         run: python tools/greek_samples.py
       - name: Commit samples
