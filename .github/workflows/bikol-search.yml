@@ -1,0 +1,48 @@
+name: Search for Bikol Bible scans
+
+# Looks for digitized copies of the old (public domain) Bikol Bible in archive.org and HathiTrust
+# and commits what it finds to bikol/search/.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/bikol-search.yml
+
+permissions:
+  contents: write
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github
+            bikol
+      - name: Search
+        run: |
+          mkdir -p bikol/search
+          ia() { curl -fsSL --get "https://archive.org/advancedsearch.php" --data-urlencode "q=$1" \
+                 --data-urlencode "fl[]=identifier" --data-urlencode "fl[]=title" --data-urlencode "fl[]=year" \
+                 --data-urlencode "fl[]=date" --data-urlencode "fl[]=language" --data-urlencode "fl[]=mediatype" \
+                 --data-urlencode "rows=200" --data-urlencode "output=json" -o "bikol/search/$2.json" || true; }
+          ia '(bikol OR bicol OR bicolano OR vicol) AND (biblia OR bible OR testamento OR evangelio OR "santa biblia")' ia-bikol
+          ia 'language:(bik OR bcl OR Bikol OR Bicol OR Bicolano)' ia-language
+          ia '"an santa biblia" OR "an bagong tipan" OR "an daan na tipan"' ia-titles
+          ia 'title:(biblia) AND (bicol OR bikol OR "Bicol language")' ia-titles2
+          curl -fsSL "https://catalog.hathitrust.org/api/volumes/brief/oclc/26301838.json" -o bikol/search/ht-probe.json || true
+          curl -fsSL --get "https://babel.hathitrust.org/cgi/ls" --data-urlencode "q1=bikol bible" --data-urlencode "anyall1=all" --data-urlencode "lmt=ft" -o bikol/search/ht-ls-bikol.html || true
+          curl -fsSL --get "https://babel.hathitrust.org/cgi/ls" --data-urlencode "q1=bicol biblia" --data-urlencode "anyall1=all" --data-urlencode "lmt=ft" -o bikol/search/ht-ls-bicol.html || true
+          curl -fsSL --get "https://catalog.hathitrust.org/Search/Home" --data-urlencode "lookfor=bible bikol" --data-urlencode "type=all" -o bikol/search/ht-catalog-bikol.html || true
+          curl -fsSL --get "https://catalog.hathitrust.org/Search/Home" --data-urlencode "lookfor=bible bicol" --data-urlencode "type=all" -o bikol/search/ht-catalog-bicol.html || true
+          ls -la bikol/search
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git sparse-checkout add bikol
+          git add bikol
+          git commit -m "Bikol Bible search results" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
