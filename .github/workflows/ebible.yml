@@ -1,0 +1,42 @@
+name: Fetch eBible texts
+
+# Downloads eBible.org's translation list (with licenses) and the USFX files of the translations
+# named in ebible/wanted.txt (one eBible id per line), and commits them under ebible/.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ebible/wanted.txt
+      - .github/workflows/ebible.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            ebible
+            .github
+      - name: Download
+        run: |
+          mkdir -p ebible
+          curl -fsSL https://ebible.org/Scriptures/translations.csv -o ebible/translations.csv
+          touch ebible/wanted.txt
+          for id in $(grep -v '^#' ebible/wanted.txt); do
+            [ -f "ebible/${id}_usfx.zip" ] && continue
+            curl -fsSL "https://ebible.org/Scriptures/${id}_usfx.zip" -o "ebible/${id}_usfx.zip" || echo "missing: $id"
+            curl -fsSL "https://ebible.org/Scriptures/${id}/copr.htm" -o "ebible/${id}_copr.htm" || true
+          done
+          ls -la ebible | head -100
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ebible
+          git commit -m "Update eBible texts" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
