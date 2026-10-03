@@ -1,1 +1,11 @@
 # eBible ids to download (one per line)
+ita1885
+arb-vd
+kor
+pesOPV
+ron1924
+ukr1871
+porbrbsl
+hat
+haw1868
+ton
