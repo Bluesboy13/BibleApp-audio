@@ -1,0 +1,49 @@
+name: Fetch Bikol New Testament scan
+
+# Downloads the archive.org item for the 1909 Bikol New Testament (University of Michigan scan):
+# its file list and the library's OCR text, committed to bikol/.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/bikol-fetch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github
+            bikol
+      - name: Download
+        run: |
+          id=ajg9045.0001.001.umich.edu
+          mkdir -p bikol
+          curl -fsSL "https://archive.org/metadata/$id" -o bikol/metadata.json
+          python3 - <<'EOF'
+          import json, urllib.request, urllib.parse
+          m = json.load(open("bikol/metadata.json"))
+          files = m.get("files", [])
+          print("\n".join(f"{f.get('name')}  {f.get('format')}  {f.get('size')}" for f in files))
+          for f in files:
+              n = f.get("name", "")
+              if n.endswith("_djvu.txt") or n.endswith(".txt") and int(f.get("size", 0)) < 20_000_000:
+                  url = "https://archive.org/download/" + m["metadata"]["identifier"] + "/" + urllib.parse.quote(n)
+                  urllib.request.urlretrieve(url, "bikol/" + n.split("/")[-1])
+                  print("got", n)
+          EOF
+          ls -la bikol
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git sparse-checkout add bikol
+          git add bikol
+          git commit -m "Bikol New Testament scan text" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
