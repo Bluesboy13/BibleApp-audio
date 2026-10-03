@@ -1,0 +1,46 @@
+name: OCR Bikol New Testament
+
+# Re-reads every page of the University of Michigan scan (600 ppi TIFFs on archive.org) with
+# Tesseract's Tagalog + Spanish models (Bikol's spelling of 1909 is close to both) and commits the
+# page texts to bikol/tess/ (page-0001.txt ...).
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/bikol-ocr.yml
+
+permissions:
+  contents: write
+
+jobs:
+  ocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github
+            bikol
+      - name: Install
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-tgl tesseract-ocr-spa unzip parallel
+      - name: Download scan
+        run: |
+          curl -fsSL "https://archive.org/download/ajg9045.0001.001.umich.edu/ajg9045.0001.001.umich.edu_tif.zip" -o tif.zip
+          mkdir -p tif && unzip -q tif.zip -d tif && find tif -type f | head -3 && find tif -type f | wc -l
+      - name: OCR
+        run: |
+          mkdir -p bikol/tess
+          find tif -type f \( -iname '*.tif' -o -iname '*.tiff' \) | sort > pages.txt
+          n=0; while read f; do n=$((n+1)); printf '%s\t%04d\n' "$f" $n; done < pages.txt > list.tsv
+          cat list.tsv | parallel --colsep '\t' -j 4 'tesseract {1} bikol/tess/page-{2} -l tgl+spa --psm 4 quiet'
+          ls bikol/tess | wc -l
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git sparse-checkout add bikol
+          git add bikol/tess
+          git commit -m "Tesseract OCR of the Bikol New Testament" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
