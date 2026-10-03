@@ -23,13 +23,20 @@ jobs:
             .github
             bikol
       - name: Install
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-tgl tesseract-ocr-spa unzip parallel
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr unzip parallel
+          mkdir -p tessdata
+          for l in tgl spa osd; do
+            curl -fsSL "https://github.com/tesseract-ocr/tessdata_best/raw/main/$l.traineddata" -o tessdata/$l.traineddata
+          done
+          ls -la tessdata
       - name: Download scan
         run: |
           curl -fsSL "https://archive.org/download/ajg9045.0001.001.umich.edu/ajg9045.0001.001.umich.edu_tif.zip" -o tif.zip
           mkdir -p tif && unzip -q tif.zip -d tif && find tif -type f | head -3 && find tif -type f | wc -l
       - name: OCR
         run: |
+          export TESSDATA_PREFIX=$PWD/tessdata
           mkdir -p bikol/tess
           find tif -type f \( -iname '*.tif' -o -iname '*.tiff' \) | sort > pages.txt
           n=0; while read f; do n=$((n+1)); printf '%s\t%04d\n' "$f" $n; done < pages.txt > list.tsv
