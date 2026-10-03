@@ -1,0 +1,73 @@
+name: OCR Bikol New Testament (parallel)
+
+# Same as bikol-ocr.yml but split over 10 machines, each reading every 10th page at 300 ppi
+# (much faster, still ample for this print), then one job commits all pages to bikol/tess/.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/bikol-ocr2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  ocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    steps:
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr unzip parallel imagemagick
+          mkdir -p tessdata
+          curl -fsSL https://raw.githubusercontent.com/tesseract-ocr/tessdata/main/tgl.traineddata -o tessdata/tgl.traineddata
+          curl -fsSL https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/spa.traineddata -o tessdata/spa.traineddata
+      - name: Download scan
+        run: |
+          curl -fsSL "https://archive.org/download/ajg9045.0001.001.umich.edu/ajg9045.0001.001.umich.edu_tif.zip" -o tif.zip
+          ls -la tif.zip
+          mkdir -p tif && unzip -q tif.zip -d tif && find tif -type f | wc -l
+      - name: OCR my pages
+        run: |
+          export TESSDATA_PREFIX=$PWD/tessdata
+          mkdir -p out
+          find tif -type f \( -iname '*.tif' -o -iname '*.tiff' \) | sort > pages.txt
+          n=0; while read f; do n=$((n+1)); if [ $(( n % 10 )) -eq ${{ matrix.part }} ]; then printf '%s\t%04d\n' "$f" $n; fi; done < pages.txt > mine.tsv
+          wc -l mine.tsv
+          cat mine.tsv | parallel --colsep '\t' -j 4 'convert {1} -resize 50% -colorspace Gray /tmp/p{2}.png && tesseract /tmp/p{2}.png out/page-{2} -l tgl+spa --psm 4 quiet && rm /tmp/p{2}.png'
+          ls out | wc -l
+      - uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ matrix.part }}
+          path: out/
+          retention-days: 3
+
+  commit:
+    needs: ocr
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github
+            bikol
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: part-*
+          merge-multiple: true
+          path: bikol/tess
+      - name: Commit
+        run: |
+          ls bikol/tess | wc -l
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git sparse-checkout add bikol
+          git add bikol/tess
+          git commit -m "Tesseract OCR of the Bikol New Testament" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
