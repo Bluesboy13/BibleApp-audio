@@ -26,9 +26,10 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr unzip parallel
           mkdir -p tessdata
-          for l in tgl spa osd; do
-            curl -fsSL "https://github.com/tesseract-ocr/tessdata_best/raw/main/$l.traineddata" -o tessdata/$l.traineddata
-          done
+          # Tagalog is only in the standard set; Spanish from the most accurate set.
+          curl -fsSL https://raw.githubusercontent.com/tesseract-ocr/tessdata/main/tgl.traineddata -o tessdata/tgl.traineddata
+          curl -fsSL https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/spa.traineddata -o tessdata/spa.traineddata
+          curl -fsSL https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/osd.traineddata -o tessdata/osd.traineddata
           ls -la tessdata
       - name: Download scan
         run: |
