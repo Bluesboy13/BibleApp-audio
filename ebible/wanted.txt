@@ -31,3 +31,24 @@ som
 yor
 hausa
 ibo
+# only for their book names in each language
+deu1912
+spabll
+fraLSG
+ita1927
+tglulb
+cmn-cu89s
+cmn-cu89t
+russyn
+nld
+polubg
+ces1613
+swe
+dan1931
+jpnm
+vie1934
+thaKJV
+mal2015
+myajvb
+srp1868
+mri2012
