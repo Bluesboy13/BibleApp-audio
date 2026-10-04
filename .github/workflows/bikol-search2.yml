@@ -1,0 +1,64 @@
+name: Search for the 1914/1927 Bikol Bible
+
+# Looks for scans of the complete Bikol Bible (An Santa Biblia, c. 1914; revised 1927 as
+# "Manga Banal na Kasuratan ... Binicol") in archive.org, HathiTrust and Google Books, and saves
+# the leads' pages, all to bikol/search2/.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/bikol-search2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github
+            bikol
+      - name: Search
+        run: |
+          d=bikol/search2; mkdir -p $d
+          ia() { curl -sSL --get "https://archive.org/advancedsearch.php" --data-urlencode "q=$1" \
+                 --data-urlencode "fl[]=identifier" --data-urlencode "fl[]=title" --data-urlencode "fl[]=date" \
+                 --data-urlencode "fl[]=language" --data-urlencode "fl[]=collection" --data-urlencode "rows=300" \
+                 --data-urlencode "output=json" -o "$d/ia-$2.json" || true; }
+          ia '"santa biblia" AND (bicol OR bikol OR bicolano)' santa
+          ia '"banal na kasuratan" OR binicol OR "bagong tipan" OR "daan asin"' kasuratan
+          ia 'language:(bik OR bcl OR bicol OR bikol OR "Bikol.") AND mediatype:texts' lang
+          ia 'subject:(bikol OR bicol) AND (bible OR biblia)' subject
+          ia 'title:(biblia OR testamento OR tipan) AND date:[1890-01-01 TO 1935-12-31] AND (philippines OR manila OR bicol OR bikol)' dated
+          ia 'collection:(americana OR michigan_books) AND (bikol OR bicol OR "Bikol.")' umich
+          # Full-text search inside archive.org books (finds Bikol words in any scan).
+          curl -sSL --get "https://archive.org/advancedsearch.php" --data-urlencode 'q="nin Cagurangnan" OR "magña aqui" OR "Daan na Tipan"' --data-urlencode "fl[]=identifier" --data-urlencode "fl[]=title" --data-urlencode "fl[]=date" --data-urlencode "rows=200" --data-urlencode "output=json" -o $d/ia-words.json || true
+          # HathiTrust catalog and full-text search.
+          for q in "bikol bible" "bicol bible" "santa biblia bicol" "banal na kasuratan" "biblia bikol" "bicol" ; do
+            f=$(echo "$q" | tr ' ' '_')
+            curl -sSL --get "https://catalog.hathitrust.org/Search/Home" --data-urlencode "lookfor=$q" --data-urlencode "type=all" -o "$d/ht-cat-$f.html" || true
+            curl -sSL --get "https://babel.hathitrust.org/cgi/ls" --data-urlencode "q1=$q" --data-urlencode "anyall1=phrase" --data-urlencode "lmt=all" -o "$d/ht-ft-$f.html" || true
+          done
+          # Google Books.
+          for q in "santa biblia bicol" "bikol bible" "bicol biblia" "banal na kasuratan binicol" "daan asin bagong tipan"; do
+            f=$(echo "$q" | tr ' ' '_')
+            curl -sSL --get "https://www.googleapis.com/books/v1/volumes" --data-urlencode "q=$q" --data-urlencode "maxResults=40" -o "$d/gb-$f.json" || true
+          done
+          # Leads from earlier research.
+          curl -sSL "https://www.scribd.com/document/100494576/Biblia-1914" -o $d/lead-scribd.html || true
+          curl -sSL "https://web.library.yale.edu/sites/default/files/files/Missionary_Bibles_in_Orbis_guide.pdf" -o $d/lead-yale.pdf || true
+          curl -sSL "http://link.bu.edu/resource/hNxwFtrx__0/" -o $d/lead-bu.html || true
+          curl -sSL "https://yirmeyah.wordpress.com/2011/08/13/e-sword-bicol-bible-an-biblia/" -o $d/lead-esword.html || true
+          ls -la $d
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git sparse-checkout add bikol
+          git add bikol/search2
+          git commit -m "Bikol Bible search results (1914/1927)" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
