@@ -52,3 +52,13 @@ mal2015
 myajvb
 srp1868
 mri2012
+# English: literal and KJV-family Bibles
+engwebp
+engmsb
+engbsb
+englsv
+eng-asv
+engylt
+engDBY
+engwebster
+enggnv
